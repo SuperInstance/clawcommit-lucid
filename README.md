@@ -1,48 +1,129 @@
-# 📓 Clawcommit Lucid
+# Clawcommit Lucid
 
-You write commits every day. Most vanish into git history. This one remembers what you actually learned.
+Lucid commit messages — analyze code changes and generate clear, conventional commit messages.
 
-A persistent learning journal for your development fleet, built on Cloudflare Workers. Zero dependencies, open source MIT.
+## Installation
 
-**Live Demo:** [clawcommit-lucid.casey-digennaro.workers.dev](https://clawcommit-lucid.casey-digennaro.workers.dev)
-
-## Why This Exists
-
-You don't forget the bug you fixed at 2am, but you will forget *what you learned fixing it* in a month. Commit messages rarely capture that context. This runs alongside your work, catching insights before they slip away.
+```bash
+pip install clawcommit-lucid
+```
 
 ## Quick Start
 
-This is a fork-first tool. You deploy your own instance.
-1.  Fork this repository from [The Fleet](https://the-fleet.casey-digennaro.workers.dev) page.
-2.  Deploy directly to Cloudflare Workers.
-3.  Add a `DEEPSEEK_API_KEY` environment variable if you want AI lesson extraction.
-4.  Push a commit. It appears in your journal in about 10 seconds.
+```python
+from clawcommit_lucid import Change, ChangeType, FileChange, ChangeAnalyzer, MessageGenerator
 
-## What Makes This Different
+# Describe your changes
+change = Change(files=[
+    FileChange("src/api/auth.py", ChangeType.ADDED, added_lines=["class Authenticator:", "    pass"]),
+    FileChange("src/api/routes.py", ChangeType.MODIFIED, added_lines=["auth = Authenticator()"], removed_lines=["# TODO"]),
+])
 
-It does not scan your codebase, only what you commit. This is a memory, not a productivity dashboard. There are no streaks, scores, or notifications. You own every line. Fork it once, modify it forever.
+# Analyze and generate
+analyzer = ChangeAnalyzer()
+analysis = analyzer.analyze(change)
 
-## Features
+generator = MessageGenerator()
+message = generator.generate(change, analysis)
 
-*   **Structured Journaling:** Log commits, bugs, and insights, tagged to your projects.
-*   **Skill Arc Tracking:** Group entries into progress lines like "learning KV patterns."
-*   **Optional AI Distillation:** Extracts the core lesson from a commit message.
-*   **Simple API:** POST JSON to add entries from any script or hook.
-*   **Clean Interface:** A dark dashboard with your notes in order.
-*   **Zero Dependencies:** Runs entirely on native Cloudflare APIs (Workers, KV).
+print(message)
+# feat(api): add 2 files
+#
+#   + src/api/auth.py (+2/-0)
+#   + src/api/routes.py (+1/-1)
+#   +3 -1 lines
+```
 
-## One Limitation
+## Parsing Diffs
 
-Your journal is stored in Cloudflare KV, which has a 10MB limit per namespace. This roughly translates to **a few thousand entries** before you need to archive or implement a rotation strategy.
+```python
+from clawcommit_lucid import Change
+
+diff_text = """diff --git a/hello.py b/hello.py
+--- a/hello.py
++++ b/hello.py
+@@ -1,3 +1,4 @@
+ import os
++import sys
+"""
+
+change = Change.from_diff(diff_text)
+```
+
+## Templates
+
+```python
+from clawcommit_lucid import TemplateEngine
+
+engine = TemplateEngine()
+engine.use("emoji")  # ✨ feat messages, 🐛 fix messages, etc.
+
+result = engine.render(change, analysis, subject="add authentication")
+# ✨ add authentication
+```
+
+Register your own:
+
+```python
+from clawcommit_lucid.template import Template
+
+engine.register(Template(name="myteam", pattern="[{type}] {subject}"))
+engine.use("myteam")
+```
+
+## Style Consistency
+
+```python
+from clawcommit_lucid import CommitHistory
+
+history = CommitHistory.from_messages([
+    "feat(api): add endpoint",
+    "feat(api): add validation",
+    "fix(ui): resolve layout issue",
+])
+
+profile = history.profile()
+print(profile.preferred_types)   # ['feat', 'fix']
+print(profile.uses_scopes)       # True
+print(profile.common_scopes)     # ['api', 'ui']
+
+# Suggest a type consistent with history
+history.suggest_type(["feat", "fix"])  # returns "feat"
+```
+
+## API Reference
+
+### `Change(files, message_hint=None)`
+
+A collection of `FileChange` objects. Parse with `Change.from_diff(diff_text)`.
+
+### `FileChange(path, change_type, added_lines, removed_lines, old_path=None)`
+
+A single file's diff. Properties: `extension`, `filename`, `lines_added`, `lines_removed`, `is_test`, `is_docs`, `is_config`.
+
+### `ChangeAnalyzer(custom_keywords=None)`
+
+Categorizes changes into: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `style`, `perf`, `build`, `ci`.
+
+### `MessageGenerator(max_subject_length=72, body_enabled=True)`
+
+Generates `CommitMessage` objects with `header`, `body`, and `footer`.
+
+### `TemplateEngine`
+
+Built-in templates: `conventional`, `conventional-scoped`, `emoji`, `semver`. Add your own with `register()`.
+
+### `CommitHistory(messages=None)`
+
+Track past commits and derive a `StyleProfile` for consistency.
+
+## Development
+
+```bash
+pip install -e ".[dev]"
+pytest tests/ -q
+```
 
 ## License
 
 MIT
-
-<div style="text-align:center;padding:16px;color:#64748b;font-size:.8rem"><a href="https://the-fleet.casey-digennaro.workers.dev" style="color:#64748b">The Fleet</a> &middot; <a href="https://cocapn.ai" style="color:#64748b">Cocapn</a></div>
-
----
-
-<i>Built with [Cocapn](https://github.com/Lucineer/cocapn-ai) — the open-source agent runtime.</i>
-<i>Part of the [Lucineer fleet](https://github.com/Lucineer)</i>
-
